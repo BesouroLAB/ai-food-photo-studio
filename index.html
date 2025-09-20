@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Estúdio & Sabor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@700&family=Lato:wght@400;700&family=Didot&family=Helvetica&family=Libre+Baskerville:wght@400;700&family=League+Spartan:wght@700&family=Garamond&family=Verdana&family=Julius+Sans+One&family=Archivo+Narrow&family=Bebas+Neue&family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+      /* Custom scrollbar for dark mode */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #1f2937; /* gray-800 */
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #4b5563; /* gray-600 */
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #6b7280; /* gray-500 */
+      }
+      body {
+        font-family: 'Inter', sans-serif;
+        color: #d1d5db; /* text-gray-300 */
+      }
+      @keyframes fadeInFast {
+        from { opacity: 0; transform: translateY(5px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .animate-fade-in-fast {
+        animation: fadeInFast 0.2s ease-out forwards;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.20.0",
+    "react/": "https://aistudiocdn.com/react@^19.1.1/",
+    "react": "https://aistudiocdn.com/react@^19.1.1",
+    "uuid": "https://aistudiocdn.com/uuid@^9.0.0",
+    "html2canvas": "https://aistudiocdn.com/html2canvas@^1.4.1",
+    "react-dnd-html5-backend": "https://aistudiocdn.com/react-dnd-html5-backend@^16.0.1",
+    "react-dnd": "https://aistudiocdn.com/react-dnd@^16.0.1",
+    "html-to-image": "https://aistudiocdn.com/html-to-image@^1.11.13",
+    "react-rnd": "https://aistudiocdn.com/react-rnd@^10.5.2"
+  }
+}
+</script>
+</head>
+  <body class="bg-gray-900">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>

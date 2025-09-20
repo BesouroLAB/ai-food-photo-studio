@@ -1,0 +1,7 @@
+{
+  "name": "Estúdio & Sabor V3",
+  "description": "Um sofisticado estúdio de fotografia gastronômica virtual, potencializado por Inteligência Artificial. Seu objetivo é transformar fotos amadoras de pratos de comida em imagens profissionais, ultrarrealistas e extremamente apetitosas. A IA constrói um cenário fotorrealista ao redor do prato do usuário, sem alterar a comida em si, garantindo autenticidade. Oferece controle granular sobre câmeras, iluminação e profundidade de campo, ensinando fotografia enquanto o usuário cria.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
