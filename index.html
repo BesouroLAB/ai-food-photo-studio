@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" class="h-full">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,8 +7,9 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@700&family=Lato:wght@400;700&family=Didot&family=Helvetica&family=Libre+Baskerville:wght@400;700&family=League+Spartan:wght@700&family=Garamond&family=Verdana&family=Julius+Sans+One&family=Archivo+Narrow&family=Bebas+Neue&family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
     <style>
+      @import url('https://fonts.googleapis.com/css2?family=Anton&family=Arvo:wght@400;700&family=Bebas+Neue&family=Bitter:wght@400;700&family=Caveat&family=Cormorant+Garamond:wght@400;700&family=Dancing+Script&family=Inter:wght@400;700&family=Lato:wght@400;700&family=Libre+Baskerville:wght@400;700&family=Lobster&family=Lora:wght@400;700&family=Merriweather:wght@400;700&family=Montserrat:wght@400;700&family=Open+Sans:wght@400;700&family=Oswald:wght@400;700&family=Pacifico&family=Playfair+Display:wght@400;700&family=Poppins:wght@400;700&family=Raleway:wght@400;700&family=Roboto+Mono:wght@400;700&family=Roboto:wght@400;700&family=Rubik:wght@400;700&family=Source+Code+Pro:wght@400;700&family=Ubuntu:wght@400;700&family=Work+Sans:wght@400;700&display=swap');
+      
       /* Custom scrollbar for dark mode */
       ::-webkit-scrollbar {
         width: 8px;
@@ -34,26 +35,45 @@
       .animate-fade-in-fast {
         animation: fadeInFast 0.2s ease-out forwards;
       }
+      /* Custom grid for collapsible sidebar */
+      .main-grid {
+        display: grid;
+        gap: 1rem; /* same as gap-4 */
+        grid-template-columns: 1fr; /* Mobile first: single column */
+      }
+      @media (min-width: 768px) { /* md breakpoint */
+          .main-grid {
+              grid-template-columns: 25% 1fr 25%;
+              transition: grid-template-columns 300ms ease-in-out;
+          }
+          .main-grid.sidebar-collapsed {
+              grid-template-columns: 0fr 1fr 25%;
+          }
+      }
     </style>
+  <!-- Fallback tradicional -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
   <script type="importmap">
 {
   "imports": {
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
     "@google/genai": "https://aistudiocdn.com/@google/genai@^1.20.0",
-    "react/": "https://aistudiocdn.com/react@^19.1.1/",
-    "react": "https://aistudiocdn.com/react@^19.1.1",
     "uuid": "https://aistudiocdn.com/uuid@^9.0.0",
     "html2canvas": "https://aistudiocdn.com/html2canvas@^1.4.1",
     "react-dnd-html5-backend": "https://aistudiocdn.com/react-dnd-html5-backend@^16.0.1",
     "react-dnd": "https://aistudiocdn.com/react-dnd@^16.0.1",
     "html-to-image": "https://aistudiocdn.com/html-to-image@^1.11.13",
-    "react-rnd": "https://aistudiocdn.com/react-rnd@^10.5.2"
+    "react-rnd": "https://aistudiocdn.com/react-rnd@^10.5.2",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/"
   }
 }
 </script>
 </head>
-  <body class="bg-gray-900">
-    <div id="root"></div>
+  <body class="bg-gray-900 h-full flex flex-col">
+    <div id="root" class="flex-grow flex flex-col min-h-0"></div>
     <script type="module" src="/index.tsx"></script>
   </body>
 </html>

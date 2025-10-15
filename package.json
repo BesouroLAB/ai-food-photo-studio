@@ -1,5 +1,5 @@
 {
-  "name": "estúdio-&-sabor-v3",
+  "name": "estúdio-&-sabor-v8",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -9,15 +9,15 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "react-dom": "^19.1.1",
     "@google/genai": "^1.20.0",
-    "react": "^19.1.1",
     "uuid": "^9.0.0",
     "html2canvas": "^1.4.1",
     "react-dnd-html5-backend": "^16.0.1",
     "react-dnd": "^16.0.1",
     "html-to-image": "^1.11.13",
-    "react-rnd": "^10.5.2"
+    "react-rnd": "^10.5.2",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

@@ -1,8 +1,7 @@
---- START OF FILE components/CustomSelect.tsx ---
-
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Option, TooltipInfo } from '../types';
+import { Option } from '../types';
 import { ChevronDownIcon, InfoIcon } from './icons';
+import { TooltipCard } from './TooltipCard';
 
 interface CustomSelectProps {
     label: string;
@@ -108,45 +107,13 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({ label, value, option
             </div>
 
             {hoveredOption && tooltipPosition && (
-                 <TooltipCard tooltip={hoveredOption.tooltip} position={tooltipPosition} name={hoveredOption.name} />
+                 <TooltipCard 
+                    name={hoveredOption.name}
+                    shortInfo={hoveredOption.short_info}
+                    technicalInfo={hoveredOption.technical_details.description}
+                    position={tooltipPosition}
+                />
             )}
-        </div>
-    );
-};
-
-interface TooltipCardProps {
-    tooltip: TooltipInfo;
-    position: { top: number, left: number };
-    name: string;
-}
-
-const TooltipCard: React.FC<TooltipCardProps> = ({ tooltip, position, name }) => {
-    const cardRef = useRef<HTMLDivElement>(null);
-    const [finalPosition, setFinalPosition] = useState(position);
-
-    useEffect(() => {
-        if (cardRef.current) {
-            const rect = cardRef.current.getBoundingClientRect();
-            let newLeft = position.left;
-            // Adjust if it goes off-screen to the right
-            if (position.left + rect.width > window.innerWidth) {
-                newLeft = window.innerWidth - rect.width - 20; // Adjust with some padding
-            }
-            setFinalPosition({ top: position.top, left: newLeft });
-        }
-    }, [position]);
-
-    return (
-        <div 
-            ref={cardRef}
-            className="fixed w-96 p-4 bg-gray-900 border border-gray-600 rounded-lg text-sm text-gray-300 z-50 shadow-2xl animate-fade-in-fast"
-            style={{ top: finalPosition.top, left: finalPosition.left, pointerEvents: 'none' }}
-        >
-            <h4 className="font-bold mb-3 text-lg text-yellow-400">{name}</h4>
-            <p className="mb-2"><strong className="text-gray-100 font-semibold">Benefícios:</strong> {tooltip.benefits}</p>
-            <p className="mb-2"><strong className="text-green-400">Prós:</strong> {tooltip.pros}</p>
-            <p className="mb-2"><strong className="text-red-400">Contras:</strong> {tooltip.cons}</p>
-            <p><strong className="text-blue-400">Ideal para:</strong> {tooltip.recommended_food}</p>
         </div>
     );
 };

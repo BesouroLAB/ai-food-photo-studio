@@ -1,19 +1,18 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { ChevronDownIcon, ChevronUpIcon } from './icons';
 
 interface CollapsibleSectionProps {
     title: string;
     children: React.ReactNode;
-    defaultOpen?: boolean;
+    isOpen: boolean;
+    onToggle: () => void;
 }
 
-export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({ title, children, defaultOpen = true }) => {
-    const [isOpen, setIsOpen] = useState(defaultOpen);
-
+export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({ title, children, isOpen, onToggle }) => {
     return (
         <div className="border-b border-gray-700/50">
             <button
-                onClick={() => setIsOpen(!isOpen)}
+                onClick={onToggle}
                 className="w-full flex justify-between items-center p-3 text-left font-semibold text-gray-200 hover:bg-gray-700/50"
             >
                 <span className="text-base">{title}</span>
