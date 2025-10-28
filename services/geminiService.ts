@@ -52,7 +52,7 @@ const getPhotographyType = (studioType: StudioType | null): string => {
 
 export const generateStyleSuggestions = async (studioType: StudioType, presetName: string): Promise<string[]> => {
     const photographyType = getPhotographyType(studioType);
-    const instruction = `Você é um diretor de arte especialista em ${photographyType}. Para uma foto de '${presetName}', gere 3 sugestões de cenários (style prompts) distintas, criativas e visualmente ricas. Cada sugestão deve ter MENOS de 20 palavras. Responda APENAS com um array JSON de strings, e nada mais.`;
+    const instruction = `Você é um diretor de arte especialista em ${photographyType}. Para uma foto de '${presetName}', gere 3 sugestões de cenários (style prompts) distintas, criativas e visualmente ricas, em português do Brasil. Cada sugestão deve ter MENOS de 20 palavras. Responda APENAS com um array JSON de strings, e nada mais.`;
 
     try {
         const response = await ai.models.generateContent({
@@ -83,14 +83,14 @@ export const generateStyleSuggestions = async (studioType: StudioType, presetNam
 };
 
 
-export const filterConflictingNegativeKeywords = async (stylePrompt: string, negativeKeywords: string[]): Promise<string[]> => {
-    if (!stylePrompt.trim()) {
+export const filterConflictingNegativeKeywords = async (sceneDescription: string, negativeKeywords: string[]): Promise<string[]> => {
+    if (!sceneDescription.trim()) {
         return negativeKeywords;
     }
 
-    const instruction = `Você é um filtro inteligente para um modelo de IA de geração de imagem. Sua tarefa é analisar o "Prompt de Estilo" do usuário e a "Lista de Keywords Negativas" fornecida. Remova da lista CADA keyword negativa que entre em conflito direto com a intenção explícita do usuário no prompt. Por exemplo, se o prompt pede "uma mão segurando uma maçã", você DEVE remover keywords como "mão", "mãos", "dedos", "figura humana". Seja rigoroso. Responda APENAS com a lista final de keywords em formato de um array JSON de strings, e nada mais.
+    const instruction = `Você é um filtro inteligente para um modelo de IA de geração de imagem. Sua tarefa é analisar a "Descrição da Cena" do usuário e a "Lista de Keywords Negativas" fornecida. Remova da lista CADA keyword negativa que entre em conflito direto com a intenção explícita do usuário no prompt. Por exemplo, se o prompt pede "uma mão segurando uma maçã", você DEVE remover keywords como "mão", "mãos", "dedos", "figura humana". Seja rigoroso. Responda APENAS com a lista final de keywords em formato de um array JSON de strings, e nada mais.
 
-Prompt de Estilo: "${stylePrompt}"
+Descrição da Cena: "${sceneDescription}"
 
 Lista de Keywords Negativas: ${JSON.stringify(negativeKeywords)}
 `;
@@ -148,17 +148,31 @@ export const getHarmonizedKeywords = (prompt: ImagePrompt | null): string[] => {
     return Array.from(allKeywords);
 };
 
+const translateToEnglish = async (text: string): Promise<string> => {
+    if (!text || !text.trim()) {
+        return "";
+    }
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: `Translate the following Portuguese text to English. Respond only with the translated text, nothing else. Text: "${text}"`,
+        });
+        return response.text.trim();
+    } catch (error) {
+        console.error("Translation to English failed, using original text.", error);
+        return text; // Fallback to original text on error
+    }
+};
 
 export const buildFullPrompt = async (prompt: ImagePrompt, studioType: StudioType): Promise<string> => {
     const harmonizedKeywords = getHarmonizedKeywords(prompt);
 
-    const englishSubject = prompt.subject;
-    const englishStyle = prompt.style;
-    const englishExtraDetails = prompt.extraDetails || '';
+    const [englishSceneDescription, englishExtraDetails] = await Promise.all([
+        translateToEnglish(prompt.sceneDescription),
+        translateToEnglish(prompt.extraDetails || '')
+    ]);
     
-    // The generic 'photographyTerm' was causing issues by overriding specific subjects.
-    // By removing it, we force the AI to rely on the more specific `subject` and `style` fields from the preset.
-    const mainDescription = `A photorealistic, high-quality, 8k photograph of ${englishSubject}, ${englishStyle}.${englishExtraDetails ? ` ${englishExtraDetails}.` : ''}`;
+    const mainDescription = `A photorealistic, high-quality, 8k photograph of ${englishSceneDescription}.${englishExtraDetails ? ` ${englishExtraDetails}.` : ''}`;
 
     let cleanCameraName = prompt.camera.name
         .replace(/\s*\(.*\)\s*/, '')
@@ -246,55 +260,34 @@ const processImageResponse = (response: GenerateContentResponse): ImageObject =>
 
 
 export const generateImageFromText = async (fullPrompt: string, numberOfImages: 1 | 2 | 4, aspectRatio: string, referenceObjects: ReferenceObject[] = []): Promise<ImageObject[]> => {
-    let finalPromptForImagen = fullPrompt;
-
-    if (referenceObjects && referenceObjects.length > 0) {
-        try {
-            const instructionText = `Você é um engenheiro de prompts especialista para um modelo de geração de imagem. Sua tarefa é criar um prompt de imagem único e detalhado que combine a intenção do usuário com os elementos visuais das imagens de referência fornecidas. Analise o prompt do usuário e cada imagem de referência com sua descrição. Em seguida, escreva um novo prompt, conciso e descritivo, para ser usado em um modelo de texto para imagem como o Imagen. O novo prompt deve ser uma síntese coesa de todos os elementos. Responda APENAS com o novo prompt, sem nenhuma outra palavra, explicação ou formatação.
-
-Prompt do Usuário: "${fullPrompt}"`;
-
-            const promptGenerationParts: Part[] = [{ text: instructionText }];
-
-            for (const ref of referenceObjects) {
-                promptGenerationParts.push({ inlineData: { data: ref.image.base64, mimeType: ref.image.mimeType } });
-                promptGenerationParts.push({ text: `Descrição da referência (${ref.role}): ${ref.description || 'Analise visualmente.'}` });
-            }
-
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: { parts: promptGenerationParts },
-            });
-
-            const newPrompt = response.text.trim();
-            if (newPrompt) {
-                finalPromptForImagen = newPrompt;
-            } else {
-                console.warn("A IA de análise não retornou um novo prompt, usando o prompt original.");
-            }
-        } catch (error) {
-             console.error("Falha ao gerar um novo prompt a partir das referências, usando o prompt original.", error);
-        }
-    }
-    
     try {
-        const response = await ai.models.generateImages({
-            model: 'imagen-4.0-generate-001',
-            prompt: finalPromptForImagen,
+        const parts: Part[] = [];
+        let promptText = `Gere uma imagem com base na seguinte descrição: "${fullPrompt}"`;
+
+        if (referenceObjects && referenceObjects.length > 0) {
+            const refDescriptions = referenceObjects.map(ref => 
+                `Para a imagem de referência de um '${ref.role}', siga esta instrução: ${ref.description || 'use-a como inspiração visual.'}`
+            ).join(' ');
+            promptText += `\n\nInstruções de Referência: ${refDescriptions}`;
+            
+            for (const ref of referenceObjects) {
+                parts.push({ inlineData: { data: ref.image.base64, mimeType: ref.image.mimeType } });
+            }
+        }
+        
+        parts.push({ text: promptText });
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash-image',
+            contents: { parts },
             config: {
-                numberOfImages: numberOfImages,
-                aspectRatio: aspectRatio as any,
+                responseModalities: [Modality.IMAGE],
             },
         });
 
-        if (!response.generatedImages || response.generatedImages.length === 0) {
-             throw new Error("A IA não retornou uma imagem válida. A resposta da API de imagens estava vazia.");
-        }
+        const image = processImageResponse(response);
+        return [image]; // Retorna um array com a única imagem gerada
 
-        return response.generatedImages.map(img => ({
-            base64: img.image.imageBytes,
-            mimeType: 'image/png'
-        }));
     } catch (error) {
         handleError(error, "Falha ao gerar imagem a partir do texto e referências.");
     }
@@ -304,7 +297,7 @@ Prompt do Usuário: "${fullPrompt}"`;
 
 export const generateSceneFromImage = async (slide: Slide, fullPrompt: string): Promise<ImageObject> => {
     if (!slide.originalImage || !slide.prompt || !slide.studioType) throw new Error("Imagem original e prompt são necessários.");
-    const content = buildContentRequest(slide, `Recrie a cena inteira da imagem fornecida. Use o seguinte prompt de estilo como sua principal inspiração para a nova estética: "${slide.prompt.style}"`);
+    const content = buildContentRequest(slide, `Recrie a cena inteira da imagem fornecida. Use o seguinte prompt de estilo como sua principal inspiração para a nova estética: "${slide.prompt.sceneDescription}"`);
     try {
         const response = await ai.models.generateContent({ model: 'gemini-2.5-flash-image', contents: content, config: { responseModalities: [Modality.IMAGE, Modality.TEXT] } });
         return processImageResponse(response);
@@ -395,7 +388,7 @@ export const inpaintImage = async (sourceImage: ImageObject, mask: ImageObject, 
 export const generateSceneWithIsolation = async (slide: Slide, fullPrompt: string): Promise<ImageObject> => {
     if (!slide.originalImage || !slide.isolationMask || !slide.prompt || !slide.studioType) throw new Error("Faltam dados para gerar a cena isolada.");
     
-    const instruction = `Mantenha a área da máscara (segunda imagem) da imagem original (primeira imagem) intacta. Crie um novo cenário ao redor com este estilo: "${slide.prompt.style}". Use estes detalhes técnicos: Câmera ${slide.prompt.camera.name}, Ângulo ${slide.prompt.angle.name}, Iluminação ${slide.prompt.lighting.name}.`;
+    const instruction = `Mantenha a área da máscara (segunda imagem) da imagem original (primeira imagem) intacta. Crie um novo cenário ao redor com este estilo: "${slide.prompt.sceneDescription}". Use estes detalhes técnicos: Câmera ${slide.prompt.camera.name}, Ângulo ${slide.prompt.angle.name}, Iluminação ${slide.prompt.lighting.name}.`;
     const content = buildContentRequest(slide, instruction);
 
     try {

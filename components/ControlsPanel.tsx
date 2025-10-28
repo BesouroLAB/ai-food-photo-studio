@@ -45,6 +45,7 @@ interface ControlsPanelProps {
     harmonizedPositiveKeywords: string[];
     finalPromptForIA: string;
     onFinalPromptChange: (newPrompt: string) => void;
+    isAutoUpdatingPrompt: boolean;
 }
 
 const AspectRatioIcon = ({ ratio, className }: { ratio: string, className?: string }) => {
@@ -103,6 +104,7 @@ export const ControlsPanel: React.FC<ControlsPanelProps> = ({
     harmonizedPositiveKeywords,
     finalPromptForIA,
     onFinalPromptChange,
+    isAutoUpdatingPrompt,
 }) => {
     const [openSections, setOpenSections] = useState<Record<string, boolean>>({
         presets: true,
@@ -153,7 +155,7 @@ export const ControlsPanel: React.FC<ControlsPanelProps> = ({
     };
 
     const handleSuggestionClick = (suggestion: string) => {
-        onPromptUpdate('style', suggestion);
+        onPromptUpdate('sceneDescription', suggestion);
     };
 
     if (!slide || !slide.prompt) {
@@ -232,21 +234,49 @@ export const ControlsPanel: React.FC<ControlsPanelProps> = ({
                     />
                 </CollapsibleSection>
                 
-                <div className="space-y-4 pt-4 border-t border-gray-700/50">
-                     <div>
-                        <label htmlFor="subject-input" className="block text-sm font-medium text-gray-300 mb-1">
-                            Objeto Principal
-                        </label>
-                        <input
-                            type="text"
-                            id="subject-input"
-                            value={prompt.subject}
-                            onChange={(e) => onPromptUpdate('subject', e.target.value)}
-                            className="w-full bg-gray-700 border border-gray-600 text-white rounded-md p-2 focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition font-mono text-xs"
-                            placeholder="Ex: bolo de chocolate, anel de diamante..."
-                        />
-                    </div>
+                <div className="space-y-4 pt-4 border-t border-gray-700/50" id="style-prompt-anchor">
+                    <label htmlFor="scene-description" className="flex items-center justify-between text-sm font-medium text-gray-300 mb-1">
+                        <div className="flex items-center">
+                            Descrição da Cena
+                            <button onClick={() => setIsStyleHelpModalOpen(true)} className="ml-2 text-gray-400 hover:text-yellow-400" title="Dicas de como usar">
+                                <InfoIcon className="h-4 w-4" />
+                            </button>
+                        </div>
+                        <div className="relative group">
+                            <button onClick={onGenerateStyles} disabled={isGeneratingStyles || isGenerating || !slide.presetName} className="flex items-center gap-1.5 p-1.5 text-yellow-400 hover:text-yellow-300 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors" title="Gerar Estilos com IA">
+                                {isGeneratingStyles ? <span className="animate-spin h-4 w-4 border-t-2 border-b-2 border-yellow-400 rounded-full"></span> : <SparklesIcon className="h-4 w-4" />}
+                                <span className="text-xs font-semibold">Sugerir Cenas</span>
+                            </button>
+                                {!slide.presetName && (
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-2 bg-gray-900 border border-gray-600 rounded-lg text-xs text-center text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-lg">
+                                        Selecione um Preset primeiro para ativar o gerador de cenas.
+                                    </div>
+                                )}
+                        </div>
+                    </label>
+                    <textarea
+                        id="scene-description"
+                        rows={5}
+                        className="w-full bg-gray-700 border border-gray-600 text-white rounded-md p-2 focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition font-mono text-xs"
+                        value={prompt.sceneDescription}
+                        onChange={(e) => onPromptUpdate('sceneDescription', e.target.value)}
+                        placeholder="Ex: Close-up de um bolo de chocolate fofinho com cobertura de ganache escorrendo, em um prato de cerâmica rústica, sobre uma mesa de madeira escura."
+                    />
+                    {styleSuggestions.length > 0 && (
+                        <div className="mt-2 space-y-1 animate-fade-in-fast">
+                            {styleSuggestions.map((suggestion, index) => (
+                                <button
+                                    key={index}
+                                    onClick={() => handleSuggestionClick(suggestion)}
+                                    className="w-full text-left bg-gray-800/50 hover:bg-gray-700/50 border border-gray-600/50 rounded-md p-2 text-xs text-gray-300 transition-colors"
+                                >
+                                    "{suggestion}"
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
+
 
                 <CollapsibleSection title="Configurações da Câmera" isOpen={openSections.camera} onToggle={() => handleToggleSection('camera')}>
                      <div id="camera-control-anchor" className="mb-4">
@@ -294,51 +324,12 @@ export const ControlsPanel: React.FC<ControlsPanelProps> = ({
                 
                 {/* Detalhes da Geração */}
                 <div className="space-y-4 pt-4 border-t border-gray-700/50">
-                     <div id="style-prompt-anchor">
-                        <label htmlFor="style-prompt" className="flex items-center justify-between text-sm font-medium text-gray-300 mb-1">
-                            <div className="flex items-center">
-                                Estilo do Cenário
-                                <button onClick={() => setIsStyleHelpModalOpen(true)} className="ml-2 text-gray-400 hover:text-yellow-400" title="Dicas de como usar">
-                                    <InfoIcon className="h-4 w-4" />
-                                </button>
-                            </div>
-                             <div className="relative group">
-                                <button onClick={onGenerateStyles} disabled={isGeneratingStyles || isGenerating || !slide.presetName} className="flex items-center gap-1.5 p-1.5 text-yellow-400 hover:text-yellow-300 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors" title="Gerar Estilos com IA">
-                                    {isGeneratingStyles ? <span className="animate-spin h-4 w-4 border-t-2 border-b-2 border-yellow-400 rounded-full"></span> : <SparklesIcon className="h-4 w-4" />}
-                                    <span className="text-xs font-semibold">Gerar Estilos</span>
-                                </button>
-                                 {!slide.presetName && (
-                                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-2 bg-gray-900 border border-gray-600 rounded-lg text-xs text-center text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-lg">
-                                        Selecione um Preset primeiro para ativar o gerador de estilos.
-                                    </div>
-                                 )}
-                            </div>
-                        </label>
-                        <textarea
-                            id="style-prompt"
-                            rows={4}
-                            className="w-full bg-gray-700 border border-gray-600 text-white rounded-md p-2 focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition font-mono text-xs"
-                            value={prompt.style}
-                            onChange={(e) => onPromptUpdate('style', e.target.value)}
-                            placeholder="Ex: em uma mesa de madeira rústica, com frutas vermelhas espalhadas..."
-                        />
-                        {styleSuggestions.length > 0 && (
-                            <div className="mt-2 space-y-1 animate-fade-in-fast">
-                                {styleSuggestions.map((suggestion, index) => (
-                                    <button
-                                        key={index}
-                                        onClick={() => handleSuggestionClick(suggestion)}
-                                        className="w-full text-left bg-gray-800/50 hover:bg-gray-700/50 border border-gray-600/50 rounded-md p-2 text-xs text-gray-300 transition-colors"
-                                    >
-                                        "{suggestion}"
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-                    </div>
                      <div>
-                        <label className="text-sm font-medium text-gray-300 mb-2 block">Keywords Adicionais da IA (Automático)</label>
-                        <div className="bg-gray-700/50 border border-gray-600 rounded-lg p-2 min-h-[60px] flex flex-wrap gap-2">
+                        <label className="text-sm font-medium text-gray-300 mb-2 block flex items-center gap-2">
+                            <span>Keywords Adicionais da IA (Automático)</span>
+                            {isAutoUpdatingPrompt && <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-yellow-400"></div>}
+                        </label>
+                        <div className={`bg-gray-700/50 border border-gray-600 rounded-lg p-2 min-h-[60px] flex flex-wrap gap-2 transition-opacity ${isAutoUpdatingPrompt ? 'opacity-50' : 'opacity-100'}`}>
                             {harmonizedPositiveKeywords.map(keyword => (
                                 <span key={keyword} className="bg-gray-600 text-gray-200 text-sm font-medium px-2 py-1 rounded-full">
                                     {keyword}
@@ -347,8 +338,11 @@ export const ControlsPanel: React.FC<ControlsPanelProps> = ({
                         </div>
                      </div>
                      <div>
-                        <label className="text-sm font-medium text-gray-300 mb-2 block">Prompt Negativo (Automático)</label>
-                        <div className="bg-red-900/20 border border-red-500/20 rounded-lg p-2 min-h-[60px] flex flex-wrap gap-2">
+                        <label className="text-sm font-medium text-gray-300 mb-2 block flex items-center gap-2">
+                            <span>Prompt Negativo (Automático)</span>
+                             {isAutoUpdatingPrompt && <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-yellow-400"></div>}
+                        </label>
+                        <div className={`bg-red-900/20 border border-red-500/20 rounded-lg p-2 min-h-[60px] flex flex-wrap gap-2 transition-opacity ${isAutoUpdatingPrompt ? 'opacity-50' : 'opacity-100'}`}>
                             {aiNegativeKeywords.map(keyword => (
                                 <span key={keyword} className="bg-red-500/20 text-red-300 text-sm font-medium px-2 py-1 rounded-full">
                                     {keyword}
@@ -395,12 +389,15 @@ export const ControlsPanel: React.FC<ControlsPanelProps> = ({
                     </div>
                     {/* Final Prompt Display */}
                     <div className="relative pt-4 border-t border-gray-700/50">
-                        <label htmlFor="final-prompt-ia" className="text-sm font-medium text-gray-300 mb-1 block">Prompt Final para IA (Automático)</label>
+                        <label htmlFor="final-prompt-ia" className="text-sm font-medium text-gray-300 mb-1 flex items-center gap-2">
+                            <span>Prompt Final para IA (Automático)</span>
+                            {isAutoUpdatingPrompt && <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-yellow-400"></div>}
+                        </label>
                          <textarea
                             id="final-prompt-ia"
                             rows={6}
                             readOnly
-                            className="w-full bg-gray-900/50 border border-gray-600 text-gray-400 rounded-md p-2 font-mono text-xs focus:ring-1 focus:ring-yellow-500"
+                            className={`w-full bg-gray-900/50 border border-gray-600 text-gray-400 rounded-md p-2 font-mono text-xs focus:ring-1 focus:ring-yellow-500 transition-opacity ${isAutoUpdatingPrompt ? 'opacity-50' : 'opacity-100'}`}
                             value={finalPromptForIA}
                          />
                          <div className="absolute top-[4.5rem] right-2 flex flex-col gap-2">
@@ -436,26 +433,25 @@ export const ControlsPanel: React.FC<ControlsPanelProps> = ({
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                         </button>
-                        <h3 className="text-xl font-bold text-yellow-400 mb-4">Dicas para o Estilo do Cenário</h3>
-                        <p className="text-base text-gray-300 mb-4 leading-relaxed">Este campo é o seu poder criativo! Descreva o ambiente onde o produto deve estar. A IA usará suas palavras para construir um cenário fotorrealista. Seja específico para melhores resultados.</p>
+                        <h3 className="text-xl font-bold text-yellow-400 mb-4">Dicas para a Descrição da Cena</h3>
+                        <p className="text-base text-gray-300 mb-4 leading-relaxed">Este campo é o seu poder criativo! Descreva a cena completa que você quer criar. A IA usará suas palavras para construir um cenário fotorrealista. Seja específico para melhores resultados.</p>
                         
                         <div className="space-y-4 text-sm">
                             <div>
-                                <h4 className="font-semibold text-gray-100">Exemplos de Bons Prompts:</h4>
+                                <h4 className="font-semibold text-gray-100">Exemplos de Boas Descrições:</h4>
                                 <ul className="list-disc list-inside text-gray-400 mt-1 space-y-1">
-                                    <li>em uma mesa de mármore branco, com talheres de prata e um guardanapo de linho ao lado</li>
-                                    <li>sobre uma tábua de madeira rústica, com um fundo de tijolos desfocado e luz de fim de tarde</li>
-                                    <li>em um prato de cerâmica artesanal, com um fundo de toalha de mesa xadrez vermelha, estilo piquenique</li>
-                                    <li>em um balcão de bar de neon, com o fundo de uma cidade noturna desfocado</li>
-                                    <li>em um prato branco minimalista, sobre um fundo de concreto, com uma única folha de manjericão</li>
+                                    <li>hambúrguer artesanal com queijo derretendo, em uma hamburgueria artesanal em Pinheiros (São Paulo), com a luz dourada do pôr do sol.</li>
+                                    <li>close-up de um bolo de chocolate fofinho com cobertura de ganache escorrendo, em um prato de cerâmica rústica, sobre uma mesa de madeira escura.</li>
+                                    <li>modelo em um look de rua estiloso em uma cidade movimentada como Nova York, com prédios e táxis desfocados ao fundo.</li>
+                                    <li>frasco de perfume de luxo sobre uma mesa de vidro, com o líquido brilhando em contraluz e um fundo de tecido de seda escuro e amassado.</li>
                                 </ul>
                             </div>
                             <div>
                                 <h4 className="font-semibold text-gray-100">Dicas Profissionais:</h4>
                                  <ul className="list-disc list-inside text-gray-400 mt-1 space-y-1">
-                                    <li><strong className="text-gray-300">Materiais e Texturas:</strong> Use palavras como "madeira rústica", "mármore polido", "linho amassado", "concreto".</li>
-                                    <li><strong className="text-gray-300">Itens Adicionais:</strong> Mencione "talheres", "copos", "flores", "ingredientes espalhados" (ex: "grãos de café espalhados").</li>
-                                    <li><strong className="text-gray-300">Ambiente:</strong> Descreva o local: "em um café parisiense", "em uma cozinha de fazenda", "em um restaurante de luxo".</li>
+                                    <li><strong className="text-gray-300">Seja Específico:</strong> Em vez de "bolo", diga "bolo de cenoura com cobertura de cream cheese".</li>
+                                    <li><strong className="text-gray-300">Descreva o Ambiente:</strong> Onde está o objeto? "em uma mesa de mármore", "em um café parisiense", "em uma praia ao pôr do sol".</li>
+                                    <li><strong className="text-gray-300">Adicione Detalhes:</strong> "com gotas de água", "com fumaça subindo", "com pétalas de rosa espalhadas".</li>
                                 </ul>
                             </div>
                         </div>

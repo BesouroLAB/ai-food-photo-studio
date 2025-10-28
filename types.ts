@@ -32,8 +32,7 @@ export interface Option {
 }
 
 export interface ImagePrompt {
-    subject: string;
-    style: string;
+    sceneDescription: string;
     camera: Option;
     angle: Option;
     depthOfField: Option;

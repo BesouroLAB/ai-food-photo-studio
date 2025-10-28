@@ -96,9 +96,9 @@ const ImageDna: React.FC<{ slide: Slide | null }> = ({ slide }) => {
             <div>
                 <div className="flex items-center gap-2 text-xs text-gray-400 uppercase tracking-wider">
                     <PencilIcon className="w-4 h-4" />
-                    <span>Estilo do Cenário</span>
+                    <span>Descrição da Cena</span>
                 </div>
-                <p className="text-gray-200 italic pl-6 text-sm">"{prompt.style}"</p>
+                <p className="text-gray-200 italic pl-6 text-sm">"{prompt.sceneDescription}"</p>
             </div>
         </div>
     );

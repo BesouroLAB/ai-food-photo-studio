@@ -120,19 +120,21 @@ const applyAdjustmentsToImage = (imageObject: ImageObject, adjustments: ImageAdj
     });
 };
 
-const getSubjectFromPreset = (presetName: string, studioType: StudioType | null): string => {
-    if (!studioType) return 'product';
+const getSceneDescriptionFromPreset = (presetName: string, studioType: StudioType | null): string => {
+    if (!studioType) return 'A product on a clean background.';
     const studioConfig = STUDIO_CONFIGS[studioType];
-    if (!studioConfig) return 'product';
+    if (!studioConfig) return 'A product on a clean background.';
 
     const preset = studioConfig.presets.find((p: StudioPreset) => p.name === presetName);
     
     if (preset && Array.isArray(preset.examples) && preset.examples.length > 0) {
-        return preset.examples[0];
+        const randomIndex = Math.floor(Math.random() * preset.examples.length);
+        return preset.examples[randomIndex];
     }
     
-    return 'product';
+    return 'A product on a clean background.';
 };
+
 
 export const App: React.FC = () => {
     const [slides, setSlides] = useState<Slide[]>([createNewSlide()]);
@@ -155,6 +157,7 @@ export const App: React.FC = () => {
     const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
     const [previewElementStyle, setPreviewElementStyle] = useState<Partial<Element> | null>(null);
     const [finalPromptForIA, setFinalPromptForIA] = useState("Ajuste as configurações para ver o prompt final aqui.");
+    const [isAutoUpdatingPrompt, setIsAutoUpdatingPrompt] = useState(false);
     const debounceTimeoutRef = useRef<number | null>(null);
 
     const currentSlide = useMemo(() => slides.find(s => s.id === selectedSlideId), [slides, selectedSlideId]);
@@ -172,9 +175,10 @@ export const App: React.FC = () => {
 
         if (currentSlide?.prompt && currentSlide.studioType) {
             debounceTimeoutRef.current = window.setTimeout(async () => {
+                setIsAutoUpdatingPrompt(true);
                 try {
                     const baseNegativeKeywords = getBaseNegativeKeywords(currentSlide.prompt!, currentSlide.studioType!);
-                    const finalNegativeKeywords = await filterConflictingNegativeKeywords(currentSlide.prompt!.style, baseNegativeKeywords);
+                    const finalNegativeKeywords = await filterConflictingNegativeKeywords(currentSlide.prompt!.sceneDescription, baseNegativeKeywords);
                     
                     const updatedPrompt = { ...currentSlide.prompt!, negativeKeywords: finalNegativeKeywords };
                     
@@ -189,6 +193,8 @@ export const App: React.FC = () => {
                 } catch (err: any) {
                     console.error("Auto prompt update failed:", err.message);
                     setFinalPromptForIA("Erro ao atualizar o prompt automaticamente.");
+                } finally {
+                    setIsAutoUpdatingPrompt(false);
                 }
             }, 500); // 500ms debounce
         } else {
@@ -201,10 +207,7 @@ export const App: React.FC = () => {
             }
         };
     }, [
-        // Granular dependencies to prevent infinite loops.
-        // This effect runs only when these core prompt values change, not when the effect itself updates negativeKeywords.
-        currentSlide?.prompt?.subject,
-        currentSlide?.prompt?.style,
+        currentSlide?.prompt?.sceneDescription,
         currentSlide?.prompt?.camera,
         currentSlide?.prompt?.angle,
         currentSlide?.prompt?.depthOfField,
@@ -250,7 +253,7 @@ export const App: React.FC = () => {
             });
             
             const link = document.createElement('a');
-            const subject = currentSlide?.prompt?.subject || 'estudio-sabor';
+            const subject = currentSlide?.prompt?.sceneDescription.substring(0, 20) || 'estudio-sabor';
             const safeSubject = subject.replace(/[^a-z0-9]/gi, '_').toLowerCase();
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
             link.download = `${safeSubject}_${timestamp}.png`;
@@ -273,8 +276,7 @@ export const App: React.FC = () => {
         if (!config) return;
 
         const promptWithoutNegatives: Omit<ImagePrompt, 'negativeKeywords'> = {
-            subject: 'product',
-            style: '',
+            sceneDescription: 'A product on a clean background',
             camera: config.cameras[0],
             angle: config.angles[0],
             depthOfField: config.depthsOfField[0],
@@ -315,7 +317,17 @@ export const App: React.FC = () => {
 
         const newPrompt: ImagePrompt = { ...currentSlide.prompt, [field]: value };
         
-        updateSlide(currentSlide.id, { prompt: newPrompt });
+        const updates: Partial<Slide> = { prompt: newPrompt };
+        
+        // ANY manual change to a preset-controlled field should break the logical link to the preset.
+        // This robustly prevents the preset from being re-applied unintentionally on a re-render cycle.
+        // We will determine the visually selected preset separately using a memo.
+        const presetControlledFields: (keyof ImagePrompt)[] = ['camera', 'angle', 'depthOfField', 'lighting', 'sceneDescription', 'extraDetails'];
+        if (presetControlledFields.includes(field) && currentSlide.presetName) {
+            updates.presetName = null;
+        }
+        
+        updateSlide(currentSlide.id, updates);
 
         // Guided scrolling logic
         const scrollTargets: Partial<Record<keyof ImagePrompt, string>> = {
@@ -482,8 +494,7 @@ export const App: React.FC = () => {
         const studioConfig = STUDIO_CONFIGS[currentSlide.studioType];
 
         const newPrompt: ImagePrompt = {
-            subject: getSubjectFromPreset(preset.name, currentSlide.studioType),
-            style: '', // Clear the style to allow the user to write their own scene description.
+            sceneDescription: getSceneDescriptionFromPreset(preset.name, currentSlide.studioType),
             camera: findOptionByName(studioConfig.cameras, preset.preset.cameraName),
             angle: findOptionByName(studioConfig.angles, preset.preset.angle),
             depthOfField: findOptionByName(studioConfig.depthsOfField, preset.preset.depthOfFieldName),
@@ -523,7 +534,7 @@ export const App: React.FC = () => {
             const newImage = await refineOrEditGeneratedImage(sourceImage, prompt, mode, currentSlide.prompt.aspectRatio, referenceObjects);
             const newSlide = {
                 ...createNewSlide(),
-                prompt: { ...currentSlide.prompt, style: prompt },
+                prompt: { ...currentSlide.prompt, sceneDescription: prompt },
                 studioType: currentSlide.studioType,
                 originalImage: sourceImage,
                 generatedImage: newImage,
@@ -889,6 +900,40 @@ export const App: React.FC = () => {
 
     const studioConfig = currentSlide?.studioType ? STUDIO_CONFIGS[currentSlide.studioType] : null;
 
+    const visuallySelectedPresetName = useMemo(() => {
+        if (!currentSlide || !currentSlide.prompt || !currentSlide.studioType) {
+            return null;
+        }
+
+        // If a preset is explicitly set (e.g., right after clicking one), use it.
+        if (currentSlide.presetName) {
+            return currentSlide.presetName;
+        }
+
+        // If the preset has been logically 'deselected' due to a custom edit,
+        // we try to find a preset that still matches the core technical settings.
+        const config = STUDIO_CONFIGS[currentSlide.studioType];
+        if (!config) {
+            return null;
+        }
+
+        const currentSettings = {
+            cameraName: currentSlide.prompt.camera.name,
+            angle: currentSlide.prompt.angle.name,
+            lightingName: currentSlide.prompt.lighting.name,
+            depthOfFieldName: currentSlide.prompt.depthOfField.name,
+        };
+
+        const matchingPreset = config.presets.find(p => 
+            p.preset.cameraName === currentSettings.cameraName &&
+            p.preset.angle === currentSettings.angle &&
+            p.preset.lightingName === currentSettings.lightingName &&
+            p.preset.depthOfFieldName === currentSettings.depthOfFieldName
+        );
+
+        return matchingPreset ? matchingPreset.name : null;
+    }, [currentSlide]);
+
     return (
         <DndProvider backend={HTML5Backend}>
             <div className="bg-gray-800 h-full text-white flex flex-col font-sans">
@@ -922,7 +967,7 @@ export const App: React.FC = () => {
                                         isGenerating={isLoading}
                                         onSetWorkMode={handleSetWorkMode}
                                         onSelectPreset={handleSelectPreset}
-                                        selectedPresetName={currentSlide.presetName}
+                                        selectedPresetName={visuallySelectedPresetName}
                                         scrollCommand={scrollCommand}
                                         onAddReferenceObject={handleAddReferenceObject}
                                         onUpdateReferenceObject={handleUpdateReferenceObject}
@@ -940,6 +985,7 @@ export const App: React.FC = () => {
                                         harmonizedPositiveKeywords={harmonizedPositiveKeywords}
                                         finalPromptForIA={finalPromptForIA}
                                         onFinalPromptChange={setFinalPromptForIA}
+                                        isAutoUpdatingPrompt={isAutoUpdatingPrompt}
                                     />
                                 )}
                             </div>
@@ -1020,6 +1066,7 @@ export const App: React.FC = () => {
                         onAddSlide={handleAddSlide}
                         onCloneSlide={handleCloneSlide}
                         onDeleteSlide={handleDeleteSlide}
+                        // FIX: Pass the correct `handleMoveSlide` function to the `onMoveSlide` prop.
                         onMoveSlide={handleMoveSlide}
                         onClose={() => setIsPreviewModalOpen(false)}
                         isActionDisabled={isLoading}
