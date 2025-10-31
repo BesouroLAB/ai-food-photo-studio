@@ -1066,7 +1066,6 @@ export const App: React.FC = () => {
                         onAddSlide={handleAddSlide}
                         onCloneSlide={handleCloneSlide}
                         onDeleteSlide={handleDeleteSlide}
-                        // FIX: Pass the correct `handleMoveSlide` function to the `onMoveSlide` prop.
                         onMoveSlide={handleMoveSlide}
                         onClose={() => setIsPreviewModalOpen(false)}
                         isActionDisabled={isLoading}

@@ -297,7 +297,16 @@ export const generateImageFromText = async (fullPrompt: string, numberOfImages: 
 
 export const generateSceneFromImage = async (slide: Slide, fullPrompt: string): Promise<ImageObject> => {
     if (!slide.originalImage || !slide.prompt || !slide.studioType) throw new Error("Imagem original e prompt são necessários.");
-    const content = buildContentRequest(slide, `Recrie a cena inteira da imagem fornecida. Use o seguinte prompt de estilo como sua principal inspiração para a nova estética: "${slide.prompt.sceneDescription}"`);
+    
+    let instruction: string;
+    if (slide.workMode === 'retoucher') {
+        instruction = `MODO RETOUCHER: A imagem fornecida contém um objeto principal (comida, joia, etc.). Identifique e mantenha este objeto principal 100% INTACTO e inalterado. Crie um novo cenário AO REDOR deste objeto. Use o seguinte prompt de estilo como inspiração para o NOVO CENÁRIO: "${slide.prompt.sceneDescription}"`;
+    } else { // Assumes 'editor' mode
+        instruction = `Recrie a cena inteira da imagem fornecida. Use o seguinte prompt de estilo como sua principal inspiração para a nova estética: "${fullPrompt}"`;
+    }
+
+    const content = buildContentRequest(slide, instruction);
+
     try {
         const response = await ai.models.generateContent({ model: 'gemini-2.5-flash-image', contents: content, config: { responseModalities: [Modality.IMAGE, Modality.TEXT] } });
         return processImageResponse(response);
@@ -388,7 +397,7 @@ export const inpaintImage = async (sourceImage: ImageObject, mask: ImageObject, 
 export const generateSceneWithIsolation = async (slide: Slide, fullPrompt: string): Promise<ImageObject> => {
     if (!slide.originalImage || !slide.isolationMask || !slide.prompt || !slide.studioType) throw new Error("Faltam dados para gerar a cena isolada.");
     
-    const instruction = `Mantenha a área da máscara (segunda imagem) da imagem original (primeira imagem) intacta. Crie um novo cenário ao redor com este estilo: "${slide.prompt.sceneDescription}". Use estes detalhes técnicos: Câmera ${slide.prompt.camera.name}, Ângulo ${slide.prompt.angle.name}, Iluminação ${slide.prompt.lighting.name}.`;
+    const instruction = `Mantenha a área da máscara (segunda imagem) da imagem original (primeira imagem) intacta. Crie um novo cenário ao redor com este estilo: "${fullPrompt}".`;
     const content = buildContentRequest(slide, instruction);
 
     try {

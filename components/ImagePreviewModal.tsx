@@ -310,9 +310,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
 
     const cursorClass = scale > 1 ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-default';
     const { prompt, adjustments } = slide;
-    // FIX: Changed React.CSSProperties to `any` to allow for `filter` property which is not in some TS definitions for CSS.
     const filterStyle: any = {};
-    // FIX: Changed React.CSSProperties to `any` to allow for `background` property with gradient.
     const vignetteStyle: any = {};
     if (adjustments) {
         const brightness = 100 + adjustments.brightness;
@@ -487,7 +485,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                         <div className="space-y-4 h-[calc(100%-40px)] overflow-y-auto pr-2">
                             {prompt && (
                                 <>
-                                    <PromptDetail label="Estilo do Cenário" value={prompt.style} />
+                                    <PromptDetail label="Estilo do Cenário" value={prompt.sceneDescription} />
                                     <PromptDetail label="Câmera" value={prompt.camera.name} />
                                     <PromptDetail label="Ângulo" value={prompt.angle.name} />
                                     <PromptDetail label="Foco (DoF)" value={prompt.depthOfField.name} />

@@ -172,7 +172,6 @@ export const AdjustmentsPanel: React.FC<AdjustmentsPanelProps> = ({ slide, onAdj
                 </div>
                 {selectedLook && (
                     <div className="mt-3">
-                        {/* FIX: Added missing properties to the AdjustmentSlider component. */}
                         <AdjustmentSlider
                             label="Intensidade do Look"
                             value={lookIntensity}
