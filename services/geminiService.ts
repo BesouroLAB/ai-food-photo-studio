@@ -3,7 +3,13 @@ import { GoogleGenAI, Modality, Chat, Type, GenerateContentResponse, Part } from
 import { ImagePrompt, Slide, ImageObject, ChatMessage, ReferenceObject, StudioType, Option } from "../types";
 import { STUDIO_CONFIGS, RANDOM_PROMPT_PARTS } from '../constants/index';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+let ai: GoogleGenAI;
+function getAi(): GoogleGenAI {
+    if (!ai) {
+        ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+    }
+    return ai;
+}
 
 const chatInstances = new Map<string, Chat>();
 
@@ -16,7 +22,7 @@ const getChatInstance = (studioType: StudioType): Chat => {
 
     const systemInstruction = `Você é um assistente especialista em ${specialty} para a plataforma 'Estúdio AI'. Sua missão é guiar os usuários a criar imagens excepcionais. Responda APENAS a perguntas sobre ${specialty} e sobre como usar as funcionalidades da plataforma. Seja conciso, amigável e técnico. QUANDO você sugerir uma configuração específica e acionável (câmera, ângulo, iluminação ou foco), você DEVE embutir um bloco de ação JSON no final da sua resposta. O formato DEVE ser exatamente: [ACTION]{"type":"APPLY_SETTING","payload":{"setting":"<SETTING_TYPE>","value":"<OPTION_NAME>"}}[/ACTION]. Valores para <SETTING_TYPE>: 'camera', 'angle', 'depthOfField', 'lighting'. <OPTION_NAME> DEVE ser o nome exato de uma das opções. Se a pergunta for sobre qualquer outro assunto, recuse educadamente.`;
 
-    const newChatInstance = ai.chats.create({
+    const newChatInstance = getAi().chats.create({
         model: 'gemini-2.5-flash',
         config: { systemInstruction },
     });
@@ -55,7 +61,7 @@ export const generateStyleSuggestions = async (studioType: StudioType, presetNam
     const instruction = `Você é um diretor de arte especialista em ${photographyType}. Para uma foto de '${presetName}', gere 3 sugestões de cenários (style prompts) distintas, criativas e visualmente ricas, em português do Brasil. Cada sugestão deve ter MENOS de 20 palavras. Responda APENAS com um array JSON de strings, e nada mais.`;
 
     try {
-        const response = await ai.models.generateContent({
+        const response = await getAi().models.generateContent({
             model: 'gemini-2.5-flash',
             contents: { parts: [{ text: instruction }] },
             config: {
@@ -95,7 +101,7 @@ Descrição da Cena: "${sceneDescription}"
 Lista de Keywords Negativas: ${JSON.stringify(negativeKeywords)}
 `;
     try {
-        const response = await ai.models.generateContent({
+        const response = await getAi().models.generateContent({
             model: 'gemini-2.5-flash',
             contents: { parts: [{ text: instruction }] },
             config: {
@@ -153,7 +159,7 @@ const translateToEnglish = async (text: string): Promise<string> => {
         return "";
     }
     try {
-        const response = await ai.models.generateContent({
+        const response = await getAi().models.generateContent({
             model: 'gemini-2.5-flash',
             contents: `Translate the following Portuguese text to English. Respond only with the translated text, nothing else. Text: "${text}"`,
         });
@@ -277,7 +283,7 @@ export const generateImageFromText = async (fullPrompt: string, numberOfImages: 
         
         parts.push({ text: promptText });
 
-        const response = await ai.models.generateContent({
+        const response = await getAi().models.generateContent({
             model: 'gemini-2.5-flash-image',
             contents: { parts },
             config: {
@@ -308,7 +314,7 @@ export const generateSceneFromImage = async (slide: Slide, fullPrompt: string): 
     const content = buildContentRequest(slide, instruction);
 
     try {
-        const response = await ai.models.generateContent({ model: 'gemini-2.5-flash-image', contents: content, config: { responseModalities: [Modality.IMAGE, Modality.TEXT] } });
+        const response = await getAi().models.generateContent({ model: 'gemini-2.5-flash-image', contents: content, config: { responseModalities: [Modality.IMAGE, Modality.TEXT] } });
         return processImageResponse(response);
     } catch (error) {
         handleError(error, "Falha ao gerar cena a partir da imagem.");
@@ -341,7 +347,7 @@ export const refineOrEditGeneratedImage = async (image: ImageObject, prompt: str
     const content = { parts };
     
     try {
-        const response = await ai.models.generateContent({ 
+        const response = await getAi().models.generateContent({ 
             model: 'gemini-2.5-flash-image', 
             contents: content, 
             config: { responseModalities: [Modality.IMAGE, Modality.TEXT] } 
@@ -369,7 +375,7 @@ export const swapMainElementInImage = async (contextImage: ImageObject, newEleme
     };
 
     try {
-        const response = await ai.models.generateContent({
+        const response = await getAi().models.generateContent({
             model: 'gemini-2.5-flash-image',
             contents: content,
             config: { responseModalities: [Modality.IMAGE, Modality.TEXT] }
@@ -387,7 +393,7 @@ export const inpaintImage = async (sourceImage: ImageObject, mask: ImageObject, 
         { text: `Na área mascarada (branca), aplique a seguinte edição: ${prompt}. Mantenha o resto da imagem inalterado.` }
     ]};
     try {
-        const response = await ai.models.generateContent({ model: 'gemini-2.5-flash-image', contents: content, config: { responseModalities: [Modality.IMAGE, Modality.TEXT] } });
+        const response = await getAi().models.generateContent({ model: 'gemini-2.5-flash-image', contents: content, config: { responseModalities: [Modality.IMAGE, Modality.TEXT] } });
         return processImageResponse(response);
     } catch (error) {
         handleError(error, "Falha ao aplicar inpainting.");
@@ -401,7 +407,7 @@ export const generateSceneWithIsolation = async (slide: Slide, fullPrompt: strin
     const content = buildContentRequest(slide, instruction);
 
     try {
-        const response = await ai.models.generateContent({ model: 'gemini-2.5-flash-image', contents: content, config: { responseModalities: [Modality.IMAGE, Modality.TEXT] } });
+        const response = await getAi().models.generateContent({ model: 'gemini-2.5-flash-image', contents: content, config: { responseModalities: [Modality.IMAGE, Modality.TEXT] } });
         return processImageResponse(response);
     } catch (error) {
         handleError(error, "Falha ao gerar cena com isolamento.");
@@ -416,7 +422,7 @@ export const harmonizeIsolatedImage = async (image: ImageObject): Promise<ImageO
         ] 
     };
     try {
-        const response = await ai.models.generateContent({ model: 'gemini-2.5-flash-image', contents: content, config: { responseModalities: [Modality.IMAGE, Modality.TEXT] } });
+        const response = await getAi().models.generateContent({ model: 'gemini-2.5-flash-image', contents: content, config: { responseModalities: [Modality.IMAGE, Modality.TEXT] } });
         return processImageResponse(response);
     } catch (error) {
         handleError(error, "Falha ao harmonizar a imagem.");
@@ -435,7 +441,7 @@ export const makeImageMoreNatural = async (image: ImageObject, withImperfections
         ] 
     };
     try {
-        const response = await ai.models.generateContent({ 
+        const response = await getAi().models.generateContent({ 
             model: 'gemini-2.5-flash-image', 
             contents: content, 
             config: { responseModalities: [Modality.IMAGE, Modality.TEXT] } 
@@ -454,7 +460,7 @@ export const subtleUpscaleImage = async (image: ImageObject): Promise<ImageObjec
         ] 
     };
     try {
-        const response = await ai.models.generateContent({ 
+        const response = await getAi().models.generateContent({ 
             model: 'gemini-2.5-flash-image', 
             contents: content, 
             config: { responseModalities: [Modality.IMAGE, Modality.TEXT] } 
@@ -473,7 +479,7 @@ export const creativeUpscaleImage = async (image: ImageObject): Promise<ImageObj
         ] 
     };
     try {
-        const response = await ai.models.generateContent({ 
+        const response = await getAi().models.generateContent({ 
             model: 'gemini-2.5-flash-image', 
             contents: content, 
             config: { responseModalities: [Modality.IMAGE, Modality.TEXT] } 
@@ -517,7 +523,7 @@ export const regenerateImage = async (baseImage: ImageObject, settingsOverride: 
         ]
     };
     try {
-        const response = await ai.models.generateContent({ 
+        const response = await getAi().models.generateContent({ 
             model: 'gemini-2.5-flash-image', 
             contents: content, 
             config: { responseModalities: [Modality.IMAGE, Modality.TEXT] } 
@@ -536,7 +542,7 @@ export const refineImageFocus = async (image: ImageObject, focusLevel: string): 
         ] 
     };
     try {
-        const response = await ai.models.generateContent({ model: 'gemini-2.5-flash-image', contents: content, config: { responseModalities: [Modality.IMAGE, Modality.TEXT] } });
+        const response = await getAi().models.generateContent({ model: 'gemini-2.5-flash-image', contents: content, config: { responseModalities: [Modality.IMAGE, Modality.TEXT] } });
         return processImageResponse(response);
     } catch (error) {
         handleError(error, "Falha ao refinar o foco.");
@@ -598,7 +604,7 @@ export const getChatResponseStream = async function* (history: ChatMessage[], ne
 
         const systemInstruction = `Você é um assistente especialista em ${studioConfig.specialty} para a plataforma 'Estúdio AI'. Sua missão é guiar os usuários a criar imagens excepcionais. Responda APENAS a perguntas sobre ${studioConfig.specialty} e sobre como usar as funcionalidades da plataforma. Seja conciso, amigável e técnico. QUANDO você sugerir uma configuração específica e acionável (câmera, ângulo, iluminação ou foco), você DEVE embutir um bloco de ação JSON no final da sua resposta. O formato DEVE ser exatamente: [ACTION]{"type":"APPLY_SETTING","payload":{"setting":"<SETTING_TYPE>","value":"<OPTION_NAME>"}}[/ACTION]. Valores para <SETTING_TYPE>: 'camera', 'angle', 'depthOfField', 'lighting'. <OPTION_NAME> DEVE ser o nome exato de uma das opções. Se a pergunta for sobre qualquer outro assunto, recuse educadamente.`;
         
-        const response = await ai.models.generateContentStream({
+        const response = await getAi().models.generateContentStream({
             model: 'gemini-2.5-flash',
             contents: [...formattedHistory, { role: 'user', parts: [{ text: newMessage }] }],
             config: { systemInstruction },
