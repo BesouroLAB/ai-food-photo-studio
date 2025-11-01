@@ -1,17 +1,40 @@
+
 // services/geminiService.ts
 import { GoogleGenAI, Modality, Chat, Type, GenerateContentResponse, Part } from "@google/genai";
 import { ImagePrompt, Slide, ImageObject, ChatMessage, ReferenceObject, StudioType, Option } from "../types";
 import { STUDIO_CONFIGS, RANDOM_PROMPT_PARTS } from '../constants/index';
 
-let ai: GoogleGenAI;
+let ai: GoogleGenAI | null = null;
+let lastApiKey: string | undefined = undefined;
+const chatInstances = new Map<string, Chat>();
+
 function getAi(): GoogleGenAI {
-    if (!ai) {
-        ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+    const currentApiKey = process.env.API_KEY;
+
+    if (!currentApiKey) {
+        // This error should be caught by the service functions' try/catch blocks.
+        // The UI polling mechanism in App.tsx should prevent this from being hit during normal operation.
+        throw new Error("A chave de API do Gemini não foi encontrada. Verifique a configuração do ambiente e recarregue a página.");
     }
+
+    // Re-initialize if the API key has changed, or if this is the first run.
+    if (!ai || currentApiKey !== lastApiKey) {
+        if (ai) {
+            console.log("Chave de API alterada ou detectada. Reinicializando o cliente Gemini AI e limpando o cache de chat.");
+        } else {
+            console.log("Inicializando o cliente Gemini AI.");
+        }
+        
+        ai = new GoogleGenAI({ apiKey: currentApiKey });
+        lastApiKey = currentApiKey;
+        // The old chat instances were tied to the old `ai` instance.
+        // Clear them to force re-creation with the new instance.
+        chatInstances.clear();
+    }
+    
     return ai;
 }
 
-const chatInstances = new Map<string, Chat>();
 
 const getChatInstance = (studioType: StudioType): Chat => {
     if (chatInstances.has(studioType)) {

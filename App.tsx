@@ -14,6 +14,9 @@ import { STUDIO_CONFIGS, STUDIO_NEGATIVE_KEYWORDS } from './constants/index';
 import { SettingsHeader } from './components/SettingsHeader';
 import { ImagePreviewModal } from './components/ImagePreviewModal';
 
+// FIX: Remove conflicting global declaration for window.aistudio.
+// It is assumed to be declared globally elsewhere, and this re-declaration causes a type error.
+
 const getBaseNegativeKeywords = (prompt: Omit<ImagePrompt, 'negativeKeywords'>, studioType: StudioType | null): string[] => {
     const allNegativeKeywords: string[] = [];
     if (studioType) {
@@ -159,6 +162,49 @@ export const App: React.FC = () => {
     const [finalPromptForIA, setFinalPromptForIA] = useState("Ajuste as configurações para ver o prompt final aqui.");
     const [isAutoUpdatingPrompt, setIsAutoUpdatingPrompt] = useState(false);
     const debounceTimeoutRef = useRef<number | null>(null);
+    const [isApiKeyReady, setIsApiKeyReady] = useState(false);
+    const [isCheckingApiKey, setIsCheckingApiKey] = useState(true);
+
+    const checkApiKey = useCallback(async () => {
+        setIsCheckingApiKey(true);
+        try {
+            if (await window.aistudio.hasSelectedApiKey()) {
+                setIsApiKeyReady(true);
+            }
+        } catch (e) {
+            console.error("Error checking for API key:", e);
+        } finally {
+            setIsCheckingApiKey(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        checkApiKey();
+    }, [checkApiKey]);
+
+    const handleSelectApiKey = async () => {
+        try {
+            await window.aistudio.openSelectKey();
+            setIsApiKeyReady(true);
+        } catch (e) {
+            console.error("Could not open API key selection:", e);
+            setError("Não foi possível abrir a seleção de chave de API.");
+        }
+    };
+
+    const withApiKeyErrorHandling = useCallback(async <T,>(apiCall: () => Promise<T>): Promise<T | undefined> => {
+        try {
+            return await apiCall();
+        } catch (err: any) {
+            if (typeof err.message === 'string' && err.message.includes("Requested entity was not found.")) {
+                setError("Sua chave de API parece inválida ou foi revogada. Por favor, selecione uma nova chave.");
+                setIsApiKeyReady(false);
+                setIsCheckingApiKey(false);
+                return undefined;
+            }
+            throw err;
+        }
+    }, []);
 
     const currentSlide = useMemo(() => slides.find(s => s.id === selectedSlideId), [slides, selectedSlideId]);
     const harmonizedPositiveKeywords = useMemo(() => getHarmonizedKeywords(currentSlide?.prompt || null), [currentSlide?.prompt]);
@@ -167,7 +213,6 @@ export const App: React.FC = () => {
         setSlides(prevSlides => prevSlides.map(s => s.id === slideId ? { ...s, ...updates } : s));
     }, []);
     
-    // Automatic Prompt Update Effect
     useEffect(() => {
         if (debounceTimeoutRef.current) {
             clearTimeout(debounceTimeoutRef.current);
@@ -178,16 +223,19 @@ export const App: React.FC = () => {
                 setIsAutoUpdatingPrompt(true);
                 try {
                     const baseNegativeKeywords = getBaseNegativeKeywords(currentSlide.prompt!, currentSlide.studioType!);
-                    const finalNegativeKeywords = await filterConflictingNegativeKeywords(currentSlide.prompt!.sceneDescription, baseNegativeKeywords);
+                    
+                    const finalNegativeKeywords = await withApiKeyErrorHandling(() => filterConflictingNegativeKeywords(currentSlide.prompt!.sceneDescription, baseNegativeKeywords));
+                    if (finalNegativeKeywords === undefined) return;
                     
                     const updatedPrompt = { ...currentSlide.prompt!, negativeKeywords: finalNegativeKeywords };
                     
-                    // Update slide silently without causing a re-render loop if only negatives changed
                     setSlides(prevSlides => prevSlides.map(s => 
                         s.id === currentSlide.id ? { ...s, prompt: updatedPrompt } : s
                     ));
                     
-                    const newFinalPrompt = await buildFullPrompt(updatedPrompt, currentSlide.studioType!);
+                    const newFinalPrompt = await withApiKeyErrorHandling(() => buildFullPrompt(updatedPrompt, currentSlide.studioType!));
+                    if (newFinalPrompt === undefined) return;
+                    
                     setFinalPromptForIA(newFinalPrompt);
 
                 } catch (err: any) {
@@ -196,7 +244,7 @@ export const App: React.FC = () => {
                 } finally {
                     setIsAutoUpdatingPrompt(false);
                 }
-            }, 500); // 500ms debounce
+            }, 500);
         } else {
              setFinalPromptForIA("Ajuste as configurações para ver o prompt final aqui.");
         }
@@ -215,7 +263,8 @@ export const App: React.FC = () => {
         currentSlide?.prompt?.extraDetails,
         currentSlide?.prompt?.aspectRatio,
         currentSlide?.prompt?.numberOfImages,
-        currentSlide?.studioType
+        currentSlide?.studioType,
+        withApiKeyErrorHandling
     ]);
 
 
@@ -237,7 +286,6 @@ export const App: React.FC = () => {
         setError(null);
     
         try {
-            // Create an image object to get the native dimensions
             const img = new Image();
             const loadPromise = new Promise(resolve => { img.onload = resolve; });
             img.src = `data:${baseImage.mimeType};base64,${baseImage.base64}`;
@@ -319,9 +367,6 @@ export const App: React.FC = () => {
         
         const updates: Partial<Slide> = { prompt: newPrompt };
         
-        // ANY manual change to a preset-controlled field should break the logical link to the preset.
-        // This robustly prevents the preset from being re-applied unintentionally on a re-render cycle.
-        // We will determine the visually selected preset separately using a memo.
         const presetControlledFields: (keyof ImagePrompt)[] = ['camera', 'angle', 'depthOfField', 'lighting', 'sceneDescription', 'extraDetails'];
         if (presetControlledFields.includes(field) && currentSlide.presetName) {
             updates.presetName = null;
@@ -329,7 +374,6 @@ export const App: React.FC = () => {
         
         updateSlide(currentSlide.id, updates);
 
-        // Guided scrolling logic
         const scrollTargets: Partial<Record<keyof ImagePrompt, string>> = {
             camera: 'camera-control-anchor',
             angle: 'angle-control-anchor',
@@ -349,7 +393,6 @@ export const App: React.FC = () => {
             return;
         }
 
-        // --- Regeneration Flow ---
         if (settingsOverride && Object.keys(settingsOverride).length > 0) {
             if (!currentSlide.generatedImage) {
                 setError("Não há imagem gerada para regenerar. Por favor, gere uma imagem primeiro.");
@@ -363,19 +406,19 @@ export const App: React.FC = () => {
 
             try {
                 const tempPrompt = { ...currentSlide.prompt, ...settingsOverride };
-                
-                // Recalculate negative keywords based on the new settings
                 const newNegativeKeywords = getBaseNegativeKeywords(tempPrompt, currentSlide.studioType);
                 const promptToUse = { ...tempPrompt, negativeKeywords: newNegativeKeywords };
                 
                 setLoadingMessage('Regerando com novos ajustes...');
-                const newImage = await regenerateImage(currentSlide.generatedImage, settingsOverride);
+                
+                const newImage = await withApiKeyErrorHandling(() => regenerateImage(currentSlide.generatedImage!, settingsOverride));
+                if (newImage === undefined) return;
 
                 const newSlide = {
                     ...createNewSlide(),
                     prompt: promptToUse,
                     studioType: currentSlide.studioType,
-                    originalImage: currentSlide.generatedImage, // The old generated becomes the original for context
+                    originalImage: currentSlide.generatedImage,
                     generatedImage: newImage,
                     presetName: null,
                 };
@@ -388,10 +431,9 @@ export const App: React.FC = () => {
             } finally {
                 setIsLoading(false);
             }
-            return; // IMPORTANT: End the regeneration flow here.
+            return;
         }
 
-        // --- Original Generation Flow ---
         if (finalPromptForIA.startsWith("Ajuste as configurações")) {
              setError("Por favor, preencha as configurações. O prompt está sendo atualizado automaticamente.");
              return;
@@ -407,7 +449,9 @@ export const App: React.FC = () => {
         try {
             if (currentSlide.workMode === 'creator') {
                 setLoadingMessage('Criando sua cena...');
-                const images = await generateImageFromText(finalPrompt, promptToUse.numberOfImages, promptToUse.aspectRatio, currentSlide.referenceObjects);
+                const images = await withApiKeyErrorHandling(() => generateImageFromText(finalPrompt, promptToUse.numberOfImages, promptToUse.aspectRatio, currentSlide.referenceObjects));
+                if (images === undefined) return;
+
                 if (images.length === 1) {
                     updateSlide(currentSlide.id, { generatedImage: images[0], generatedVariations: null, prompt: promptToUse });
                 } else {
@@ -415,11 +459,13 @@ export const App: React.FC = () => {
                 }
             } else if (currentSlide.workMode === 'retoucher' || currentSlide.workMode === 'editor') {
                 setLoadingMessage('Recriando seu cenário...');
-                const image = await generateSceneFromImage({ ...currentSlide, prompt: promptToUse }, finalPrompt);
+                const image = await withApiKeyErrorHandling(() => generateSceneFromImage({ ...currentSlide, prompt: promptToUse }, finalPrompt));
+                if (image === undefined) return;
                 updateSlide(currentSlide.id, { generatedImage: image, generatedVariations: null, prompt: promptToUse });
             } else if (currentSlide.workMode === 'isolate') {
                 setLoadingMessage('Isolando o produto e gerando cenário...');
-                const image = await generateSceneWithIsolation({ ...currentSlide, prompt: promptToUse }, finalPrompt);
+                const image = await withApiKeyErrorHandling(() => generateSceneWithIsolation({ ...currentSlide, prompt: promptToUse }, finalPrompt));
+                if (image === undefined) return;
                 updateSlide(currentSlide.id, { generatedImage: image, generatedVariations: null, prompt: promptToUse });
             }
         } catch (err: any) {
@@ -427,7 +473,7 @@ export const App: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [currentSlide, slides, updateSlide, finalPromptForIA]);
+    }, [currentSlide, slides, updateSlide, finalPromptForIA, withApiKeyErrorHandling]);
 
 
     const handleSelectVariation = useCallback((image: ImageObject) => {
@@ -507,7 +553,7 @@ export const App: React.FC = () => {
 
         newPrompt.negativeKeywords = getBaseNegativeKeywords(newPrompt, currentSlide.studioType);
         
-        setStyleSuggestions([]); // Clear old suggestions
+        setStyleSuggestions([]);
         updateSlide(currentSlide.id, { prompt: newPrompt, presetName: preset.name });
         
     }, [currentSlide, updateSlide]);
@@ -531,7 +577,9 @@ export const App: React.FC = () => {
         setIsPreviewModalOpen(false);
     
         try {
-            const newImage = await refineOrEditGeneratedImage(sourceImage, prompt, mode, currentSlide.prompt.aspectRatio, referenceObjects);
+            const newImage = await withApiKeyErrorHandling(() => refineOrEditGeneratedImage(sourceImage, prompt, mode, currentSlide.prompt!.aspectRatio, referenceObjects));
+            if (newImage === undefined) return;
+
             const newSlide = {
                 ...createNewSlide(),
                 prompt: { ...currentSlide.prompt, sceneDescription: prompt },
@@ -549,7 +597,7 @@ export const App: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [currentSlide, slides, previewSourceType]);
+    }, [currentSlide, slides, previewSourceType, withApiKeyErrorHandling]);
 
     const handleSwapMainElement = useCallback(async (newElementImage: ImageObject) => {
         const contextImage = previewSourceType === 'original' 
@@ -566,12 +614,14 @@ export const App: React.FC = () => {
         setIsPreviewModalOpen(false);
 
         try {
-            const newImage = await swapMainElementInImage(contextImage, newElementImage, currentSlide.studioType);
+            const newImage = await withApiKeyErrorHandling(() => swapMainElementInImage(contextImage, newElementImage, currentSlide.studioType!));
+            if (newImage === undefined) return;
+
             const newSlide = {
                 ...createNewSlide(),
                 prompt: currentSlide.prompt,
                 studioType: currentSlide.studioType,
-                originalImage: newElementImage, // The new element becomes the original for this new context
+                originalImage: newElementImage,
                 generatedImage: newImage,
                 presetName: null,
             };
@@ -583,7 +633,7 @@ export const App: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [currentSlide, slides, previewSourceType]);
+    }, [currentSlide, slides, previewSourceType, withApiKeyErrorHandling]);
 
     const handleApplyInpainting = useCallback(async (mask: ImageObject, prompt: string) => {
         if (!currentSlide || !currentSlide.prompt) return;
@@ -596,7 +646,8 @@ export const App: React.FC = () => {
         setError(null);
         
         try {
-            const newImage = await inpaintImage(sourceImage, mask, prompt, currentSlide.prompt.aspectRatio);
+            const newImage = await withApiKeyErrorHandling(() => inpaintImage(sourceImage, mask, prompt, currentSlide.prompt!.aspectRatio));
+            if (newImage === undefined) return;
             
             const newSlide = {
                 ...createNewSlide(),
@@ -615,7 +666,7 @@ export const App: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [currentSlide, maskingSourceType, slides]);
+    }, [currentSlide, maskingSourceType, slides, withApiKeyErrorHandling]);
     
     const handleApplyAdjustments = useCallback(async (adjustments: ImageAdjustments) => {
         if (!currentSlide || !currentSlide.generatedImage) return;
@@ -633,7 +684,7 @@ export const App: React.FC = () => {
                 studioType: currentSlide.studioType,
                 originalImage: currentSlide.generatedImage,
                 generatedImage: adjustedImage,
-                adjustments: null, // Reset adjustments on the new slide
+                adjustments: null,
                 presetName: null,
             };
             const index = slides.findIndex(s => s.id === currentSlide.id);
@@ -655,7 +706,9 @@ export const App: React.FC = () => {
         setIsPreviewModalOpen(false);
 
         try {
-            const newImage = await refineImageFocus(currentSlide.generatedImage, focusLevel);
+            const newImage = await withApiKeyErrorHandling(() => refineImageFocus(currentSlide.generatedImage!, focusLevel));
+            if (newImage === undefined) return;
+
             const newSlide = {
                 ...createNewSlide(),
                 prompt: currentSlide.prompt,
@@ -672,7 +725,7 @@ export const App: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [currentSlide, slides]);
+    }, [currentSlide, slides, withApiKeyErrorHandling]);
     
     const handleHarmonizeImage = useCallback(async () => {
         if (!currentSlide || !currentSlide.generatedImage) return;
@@ -683,7 +736,9 @@ export const App: React.FC = () => {
         setIsPreviewModalOpen(false);
 
         try {
-            const newImage = await harmonizeIsolatedImage(currentSlide.generatedImage);
+            const newImage = await withApiKeyErrorHandling(() => harmonizeIsolatedImage(currentSlide.generatedImage!));
+            if (newImage === undefined) return;
+
              const newSlide = {
                 ...createNewSlide(),
                 prompt: currentSlide.prompt,
@@ -700,7 +755,7 @@ export const App: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [currentSlide, slides]);
+    }, [currentSlide, slides, withApiKeyErrorHandling]);
 
     const handleMakeMoreNatural = useCallback(async (withImperfections: boolean) => {
         if (!currentSlide || !currentSlide.generatedImage) return;
@@ -711,7 +766,9 @@ export const App: React.FC = () => {
         setIsPreviewModalOpen(false);
 
         try {
-            const newImage = await makeImageMoreNatural(currentSlide.generatedImage, withImperfections);
+            const newImage = await withApiKeyErrorHandling(() => makeImageMoreNatural(currentSlide.generatedImage!, withImperfections));
+            if (newImage === undefined) return;
+
              const newSlide = {
                 ...createNewSlide(),
                 prompt: currentSlide.prompt,
@@ -728,7 +785,7 @@ export const App: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [currentSlide, slides]);
+    }, [currentSlide, slides, withApiKeyErrorHandling]);
 
     const handleSubtleUpscale = useCallback(async () => {
         const sourceImage = previewSourceType === 'original' ? currentSlide?.originalImage : currentSlide?.generatedImage;
@@ -740,7 +797,9 @@ export const App: React.FC = () => {
         setIsPreviewModalOpen(false);
 
         try {
-            const newImage = await subtleUpscaleImage(sourceImage);
+            const newImage = await withApiKeyErrorHandling(() => subtleUpscaleImage(sourceImage));
+            if (newImage === undefined) return;
+
             const newSlide = {
                 ...createNewSlide(),
                 prompt: currentSlide.prompt,
@@ -757,7 +816,7 @@ export const App: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [currentSlide, slides, previewSourceType]);
+    }, [currentSlide, slides, previewSourceType, withApiKeyErrorHandling]);
 
     const handleCreativeUpscale = useCallback(async () => {
         const sourceImage = previewSourceType === 'original' ? currentSlide?.originalImage : currentSlide?.generatedImage;
@@ -769,7 +828,9 @@ export const App: React.FC = () => {
         setIsPreviewModalOpen(false);
 
         try {
-            const newImage = await creativeUpscaleImage(sourceImage);
+            const newImage = await withApiKeyErrorHandling(() => creativeUpscaleImage(sourceImage));
+            if (newImage === undefined) return;
+
             const newSlide = {
                 ...createNewSlide(),
                 prompt: currentSlide.prompt,
@@ -786,7 +847,7 @@ export const App: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [currentSlide, slides, previewSourceType]);
+    }, [currentSlide, slides, previewSourceType, withApiKeyErrorHandling]);
 
     const handleAddReferenceObject = (image: ImageObject) => {
         if (!currentSlide) return;
@@ -841,14 +902,15 @@ export const App: React.FC = () => {
         setStyleSuggestions([]);
         setError(null);
         try {
-            const suggestions = await generateStyleSuggestions(currentSlide.studioType, currentSlide.presetName);
+            const suggestions = await withApiKeyErrorHandling(() => generateStyleSuggestions(currentSlide.studioType!, currentSlide.presetName!));
+            if (suggestions === undefined) return;
             setStyleSuggestions(suggestions);
         } catch (err: any) {
             setError(err.message);
         } finally {
             setIsGeneratingStyles(false);
         }
-    }, [currentSlide]);
+    }, [currentSlide, withApiKeyErrorHandling]);
 
     const handleGenerateJson = useCallback(() => {
         if (!currentSlide || finalPromptForIA.startsWith("Ajuste as configurações") || finalPromptForIA.trim().startsWith('{')) {
@@ -905,13 +967,10 @@ export const App: React.FC = () => {
             return null;
         }
 
-        // If a preset is explicitly set (e.g., right after clicking one), use it.
         if (currentSlide.presetName) {
             return currentSlide.presetName;
         }
 
-        // If the preset has been logically 'deselected' due to a custom edit,
-        // we try to find a preset that still matches the core technical settings.
         const config = STUDIO_CONFIGS[currentSlide.studioType];
         if (!config) {
             return null;
@@ -1021,6 +1080,9 @@ export const App: React.FC = () => {
                             onSelectElement={setSelectedElementId}
                             previewElementStyle={previewElementStyle}
                             onSelectStudio={handleSelectStudio}
+                            isApiKeyReady={isApiKeyReady}
+                            isCheckingApiKey={isCheckingApiKey}
+                            onSelectApiKey={handleSelectApiKey}
                         />
                     </div>
     

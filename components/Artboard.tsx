@@ -36,6 +36,9 @@ interface ArtboardProps {
     onSelectElement: (elementId: string | null) => void;
     previewElementStyle: Partial<ElementType> | null;
     onSelectStudio: (studioType: StudioType) => void;
+    isApiKeyReady: boolean;
+    isCheckingApiKey: boolean;
+    onSelectApiKey: () => void;
 }
 
 const fileToImageObject = (file: File): Promise<ImageObject> => {
@@ -462,7 +465,8 @@ export const Artboard: React.FC<ArtboardProps> = ({
     onSelectVariation, onPreviewImage, onAddSlide, onCloneSlide, onDeleteSlide, onSelectSlide,
     onMoveSlide, isMasking, maskingSourceType, onApplyInpainting, onCancelInpainting,
     isIsolatingProduct, onApplyIsolationMask, onCancelIsolation, onErrorDismiss,
-    onUpdateElement, selectedElementId, onSelectElement, previewElementStyle, onSelectStudio
+    onUpdateElement, selectedElementId, onSelectElement, previewElementStyle, onSelectStudio,
+    isApiKeyReady, isCheckingApiKey, onSelectApiKey
 }) => {
     const [isDragging, setIsDragging] = useState(false);
     const [editingElementId, setEditingElementId] = useState<string | null>(null);
@@ -501,7 +505,7 @@ export const Artboard: React.FC<ArtboardProps> = ({
     const renderMainContent = () => {
         if (isLoading) return <Loader message={loadingMessage} />;
         if (error) return (
-            <div className="text-center text-red-400 p-4 bg-red-900/20 border border-red-500/30 rounded-lg animate-fade-in-fast">
+            <div className="text-center text-red-400 p-4 bg-red-900/20 border border-red-500/30 rounded-lg animate-fade-in-fast max-w-lg">
                 <h3 className="text-xl font-bold mb-2 text-red-300">Ocorreu um Erro</h3>
                 <p className="text-red-200">{error}</p>
                 <button
@@ -516,7 +520,7 @@ export const Artboard: React.FC<ArtboardProps> = ({
         if (!slide) return null;
 
         if (!slide.studioType) {
-            return <StudioSelector onSelectStudio={onSelectStudio} />;
+            return <StudioSelector onSelectStudio={onSelectStudio} isApiKeyReady={isApiKeyReady} isCheckingApiKey={isCheckingApiKey} onSelectApiKey={onSelectApiKey} />;
         }
 
         if (slide.generatedVariations && slide.generatedVariations.length > 0) {
