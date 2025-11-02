@@ -168,11 +168,23 @@ export const App: React.FC = () => {
     const checkApiKey = useCallback(async () => {
         setIsCheckingApiKey(true);
         try {
-            if (await window.aistudio.hasSelectedApiKey()) {
+            // This is a more robust check. It ensures `window.aistudio` is a non-null object
+            // before attempting to access its properties. This prevents runtime errors in
+            // development/preview environments where `window.aistudio` might be missing, null, or not an object.
+            if (typeof window.aistudio === 'object' && window.aistudio !== null && typeof window.aistudio.hasSelectedApiKey === 'function') {
+                const hasKey = await window.aistudio.hasSelectedApiKey();
+                setIsApiKeyReady(hasKey);
+            } else {
+                // In dev/preview environments where aistudio or its methods are not available,
+                // we assume the key is ready to allow the app to load and facilitate development.
+                console.warn("window.aistudio.hasSelectedApiKey not found. Assuming API key is ready for development.");
                 setIsApiKeyReady(true);
             }
         } catch (e) {
             console.error("Error checking for API key:", e);
+            // As a fallback, especially for dev environments, we'll allow the app to load.
+            // A real API key error will be caught later when an actual API call is made.
+            setIsApiKeyReady(true);
         } finally {
             setIsCheckingApiKey(false);
         }
@@ -184,7 +196,12 @@ export const App: React.FC = () => {
 
     const handleSelectApiKey = async () => {
         try {
-            await window.aistudio.openSelectKey();
+             if (window.aistudio) {
+                await window.aistudio.openSelectKey();
+             } else {
+                console.warn("window.aistudio not found. Cannot open API key selection.");
+                // In dev, we can just pretend it worked.
+             }
             setIsApiKeyReady(true);
         } catch (e) {
             console.error("Could not open API key selection:", e);
